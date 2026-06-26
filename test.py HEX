@@ -1,0 +1,47 @@
+import serial
+import time
+
+# --- ตั้งค่าการเชื่อมต่อ ---
+SERIAL_PORT = 'COM4'
+BAUD_RATE = 115200
+
+def main():
+    try:
+        # เปิดพอร์ต
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.5)
+        print(f"เชื่อมต่อกับ {SERIAL_PORT} สำเร็จ")
+
+        # 1. เตรียมแพ็กเก็ต UBX (ตัวอย่างนี้คือคำสั่ง UBX-MON-VER Poll)
+        # โครงสร้าง: B5 62 (Header) | 0A 04 (Class/ID) | 00 00 (Length 0) | 0E 34 (Checksum A/B)
+        ubx_cmd_poll_version = bytes.fromhex('B5 62 0A 04 00 00 0E 34')
+
+        # 2. ส่งคำสั่ง (จำลองพฤติกรรม FC ตอนบูต)
+        print(">> FC กำลังส่งคำสั่ง UBX ไปที่โมดูล...")
+        ser.write(ubx_cmd_poll_version)
+        ser.flush()
+        time.sleep(0.1) # รอ GPS ประมวลผลและตอบกลับ
+
+        print("<< รอรับข้อมูลรูปแบบ HEX...\n")
+
+        # 3. อ่านข้อมูลแบบ Binary (อ่านทีละ Chunk ไม่สนบรรทัด)
+        while True:
+            # อ่านข้อมูลที่ค้างอยู่ใน Buffer (สมมติอ่านทีละ 32 ไบต์)
+            raw_bytes = ser.read(32) 
+            
+            if raw_bytes:
+                # แปลง Byte Array เป็นข้อความ Hex string สวยๆ คั่นด้วยช่องว่าง
+                hex_output = ' '.join(f'{b:02X}' for b in raw_bytes)
+                print(f"[HEX DATA] {hex_output}")
+                
+                # ข้อสังเกต: ถ้าคุณเห็น 'B5 62' โผล่มาในข้อมูล แปลว่านั่นคือจุดเริ่มต้นของแพ็กเก็ต UBX
+
+    except serial.SerialException as e:
+        print(f"Port Error: {e}")
+    except KeyboardInterrupt:
+        print("\nหยุดการทำงาน")
+    finally:
+        if 'ser' in locals() and ser.is_open:
+            ser.close()
+
+if __name__ == '__main__':
+    main()
